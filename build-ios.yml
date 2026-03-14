@@ -1,0 +1,57 @@
+name: Build GarminRun iOS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # permette avvio manuale dal sito GitHub
+
+jobs:
+  build:
+    runs-on: macos-14   # Mac gratuito offerto da GitHub
+
+    steps:
+
+    # 1. Scarica il codice dal repository
+    - name: Checkout codice
+      uses: actions/checkout@v4
+
+    # 2. Seleziona Xcode 15
+    - name: Seleziona Xcode 15
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+    # 3. Mostra versione Xcode (utile per debug)
+    - name: Versione Xcode
+      run: xcodebuild -version
+
+    # 4. Compila l'app senza firma (produce .app non firmata)
+    - name: Compila app
+      run: |
+        xcodebuild \
+          -project GarminRun.xcodeproj \
+          -scheme GarminRun \
+          -configuration Release \
+          -destination 'generic/platform=iOS' \
+          -derivedDataPath build \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          ONLY_ACTIVE_ARCH=NO \
+          | xcpretty || true
+
+    # 5. Crea il file .ipa da installare con AltStore
+    - name: Crea file .ipa
+      run: |
+        APP_PATH=$(find build -name "*.app" | head -1)
+        echo "App trovata: $APP_PATH"
+        mkdir -p Payload
+        cp -r "$APP_PATH" Payload/
+        zip -r GarminRun.ipa Payload/
+        echo "IPA creato con successo"
+
+    # 6. Carica il .ipa come artefatto scaricabile
+    - name: Carica artefatto .ipa
+      uses: actions/upload-artifact@v4
+      with:
+        name: GarminRun-ipa
+        path: GarminRun.ipa
+        retention-days: 30
